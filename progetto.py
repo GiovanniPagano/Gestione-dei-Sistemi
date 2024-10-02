@@ -52,7 +52,6 @@ class UbuntuCommandManager:
         except Exception as e:
             self.output_listbox.insert(tk.END, f"Errore durante la creazione dell'utente: {str(e)}")
 
-
     def show_entry_fields(self):
         username = simpledialog.askstring("Input", "Inserisci nome utente:")
         if username:
@@ -211,6 +210,28 @@ class UbuntuCommandManager:
         except Exception as e:
             self.output_listbox.insert(tk.END, f"Errore durante il caricamento degli utenti: {str(e)}")
 
+    def create_group(self):
+        group_name = simpledialog.askstring("Input", "Inserisci il nome del gruppo da creare:")
+        if group_name:
+            command = ["sudo", "groupadd", group_name]
+            result = subprocess.run(command, capture_output=True, text=True)
+            if result.returncode == 0:
+                messagebox.showinfo("Successo", f"Gruppo '{group_name}' creato con successo.")
+            else:
+                messagebox.showerror("Errore", f"Errore durante la creazione del gruppo: {result.stderr}")
+
+    def delete_group(self):
+        group_name = simpledialog.askstring("Input", "Inserisci il nome del gruppo da eliminare:")
+        if group_name:
+            confirm = messagebox.askyesno("Conferma", f"Vuoi eliminare il gruppo '{group_name}'?")
+            if confirm:
+                command = ["sudo", "groupdel", group_name]
+                result = subprocess.run(command, capture_output=True, text=True)
+                if result.returncode == 0:
+                    messagebox.showinfo("Successo", f"Gruppo '{group_name}' eliminato con successo.")
+                else:
+                    messagebox.showerror("Errore", f"Errore durante l'eliminazione del gruppo: {result.stderr}")
+
     def setup_ui(self):
         self.entry_frame = ctk.CTkFrame(self.root)
         self.entry_frame.pack(pady=10)
@@ -230,6 +251,14 @@ class UbuntuCommandManager:
         # Pulsante per eliminare un utente
         self.delete_user_button = ctk.CTkButton(self.root, text="Elimina Utente", command=self.delete_non_root_users)
         self.delete_user_button.pack(pady=5)
+
+        # Pulsante per creare un gruppo
+        self.create_group_button = ctk.CTkButton(self.root, text="Crea Gruppo", command=self.create_group)
+        self.create_group_button.pack(pady=5)
+
+        # Pulsante per eliminare un gruppo
+        self.delete_group_button = ctk.CTkButton(self.root, text="Elimina Gruppo", command=self.delete_group)
+        self.delete_group_button.pack(pady=5)
 
         # Lista di output
         self.output_listbox = tk.Listbox(self.root, height=10, width=50)
