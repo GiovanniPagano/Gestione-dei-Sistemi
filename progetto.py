@@ -21,6 +21,12 @@ class UbuntuCommandManager:
             messagebox.showerror("Errore", "Il nome utente non è valido. Deve contenere solo lettere e numeri e avere almeno 3 caratteri.")
             return
 
+        # Chiede la password per il nuovo utente
+        password = simpledialog.askstring("Input", "Inserisci la password per l'utente:", show='*')
+        if not password:
+            messagebox.showerror("Errore", "Devi inserire una password valida.")
+            return
+
         try:
             # Comando per aggiungere l'utente
             command = ["sudo", "useradd", "-m", username]  # -m crea la home directory
@@ -28,14 +34,24 @@ class UbuntuCommandManager:
 
             # Controlla il risultato del comando
             if result.returncode == 0:
-                self.output_listbox.insert(tk.END, f"Utente '{username}' creato con successo.")
-                messagebox.showinfo("Successo", f"Utente '{username}' creato con successo.")
-                self.load_users()  # Ricarica la lista degli utenti
+                # Imposta la password per il nuovo utente
+                passwd_command = ["sudo", "passwd", username]
+                process = subprocess.Popen(passwd_command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                process.communicate(input=f"{password}\n{password}\n")  # Imposta la nuova password
+                
+                if process.returncode == 0:
+                    self.output_listbox.insert(tk.END, f"Utente '{username}' creato con successo.")
+                    messagebox.showinfo("Successo", f"Utente '{username}' creato con successo.")
+                    self.load_users()  # Ricarica la lista degli utenti
+                else:
+                    messagebox.showerror("Errore", f"Errore durante l'impostazione della password: {process.stderr}")
+
             else:
                 messagebox.showerror("Errore", f"Errore durante la creazione dell'utente: {result.stderr}")
 
         except Exception as e:
             self.output_listbox.insert(tk.END, f"Errore durante la creazione dell'utente: {str(e)}")
+
 
     def show_entry_fields(self):
         username = simpledialog.askstring("Input", "Inserisci nome utente:")
@@ -75,6 +91,7 @@ class UbuntuCommandManager:
 
         # Estrae l'opzione selezionata dal menu a tendina
         selected_option = self.option_var.get().split()[0]
+        command = []  # Inizializza la variabile command
 
         # Gestisce il comportamento in base all'opzione selezionata
         if selected_option in ["-L", "-U"]:
@@ -82,11 +99,28 @@ class UbuntuCommandManager:
             command = ["sudo", "usermod", selected_option, selected_user]
         elif selected_option == "-p":
             # Chiede la nuova password
-            new_password = simpledialog.askstring("Cambia Password", "Inserisci la nuova password per l'utente:")
+            new_password = simpledialog.askstring("Cambia Password", "Inserisci la nuova password per l'utente:", show='*')
             if not new_password:
                 messagebox.showerror("Errore", "Inserisci una password valida.")
                 return
-            command = ["sudo", "usermod", selected_option, new_password, selected_user]
+
+            try:
+                # Usa il comando passwd per cambiare la password
+                passwd_command = ["sudo", "passwd", selected_user]
+                process = subprocess.Popen(passwd_command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                process.communicate(input=f"{new_password}\n{new_password}\n")  # Imposta la nuova password
+
+                if process.returncode == 0:
+                    self.output_listbox.insert(tk.END, f"Password per '{selected_user}' modificata con successo.")
+                    messagebox.showinfo("Successo", "Password modificata con successo.")
+                else:
+                    messagebox.showerror("Errore", f"Errore durante la modifica della password: {process.stderr}")
+
+            except Exception as e:
+                self.output_listbox.insert(tk.END, f"Errore durante la modifica della password: {str(e)}")
+
+            return  # Uscita dalla funzione, non eseguire il comando successivamente
+
         elif selected_option == "-g":
             # Chiede il nuovo gruppo
             new_group = simpledialog.askstring("Cambia Gruppo", "Inserisci il nuovo gruppo per l'utente:")
@@ -117,16 +151,17 @@ class UbuntuCommandManager:
 
         # Esegui il comando
         try:
-            result = subprocess.run(command, capture_output=True, text=True)
-            self.command_history.append(command)
+            if command:  # Controlla se il comando è stato impostato
+                result = subprocess.run(command, capture_output=True, text=True)
+                self.command_history.append(command)
 
-            self.output_listbox.insert(tk.END, f"Comando: {' '.join(command)}")
-            if result.returncode == 0:
-                self.output_listbox.insert(tk.END, f"Modifica dell'utente '{selected_user}' riuscita con successo.")
-                messagebox.showinfo("Successo", "Modifica utente riuscita con successo.")
-                self.load_users()  # Ricarica la lista degli utenti
-            else:
-                messagebox.showerror("Errore", f"Errore durante la modifica dell'utente: {result.stderr}")
+                self.output_listbox.insert(tk.END, f"Comando: {' '.join(command)}")
+                if result.returncode == 0:
+                    self.output_listbox.insert(tk.END, f"Modifica dell'utente '{selected_user}' riuscita con successo.")
+                    messagebox.showinfo("Successo", "Modifica utente riuscita con successo.")
+                    self.load_users()  # Ricarica la lista degli utenti
+                else:
+                    messagebox.showerror("Errore", f"Errore durante la modifica dell'utente: {result.stderr}")
 
         except Exception as e:
             self.output_listbox.insert(tk.END, f"Errore durante la modifica dell'utente: {str(e)}")
@@ -169,59 +204,41 @@ class UbuntuCommandManager:
                 if os.path.isdir(os.path.join("/home", user_dir)):
                     users_with_home.append(user_dir)
 
-            if "amministratore" in users_with_home:
-                users_with_home.remove("amministratore")  # Non includere root tra gli utenti da eliminare
-
             for user in users_with_home:
-                self.user_listbox.insert(tk.END, user)
+                if user not in ["amministratore", "Studente"]:  # Nascondi utenti specifici
+                    self.user_listbox.insert(tk.END, user)
 
         except Exception as e:
-            messagebox.showerror("Errore", f"Errore durante il caricamento degli utenti: {str(e)}")
+            self.output_listbox.insert(tk.END, f"Errore durante il caricamento degli utenti: {str(e)}")
 
     def setup_ui(self):
-        ctk.set_appearance_mode("dark")
-        ctk.set_default_color_theme("green")
-
-        # Frame per output
-        self.output_listbox = tk.Listbox(self.root, height=10, width=80)
-        self.output_listbox.pack(pady=20)
-
-        # Frame per i comandi
-        commands_frame = ctk.CTkFrame(self.root)
-        commands_frame.pack(pady=20)
-
-        # Left column buttons
-        left_frame = ctk.CTkFrame(commands_frame)
-        left_frame.pack(side=tk.LEFT, padx=10)
-
-        btn_create_user = ctk.CTkButton(left_frame, text="Crea Utente", command=self.show_entry_fields)
-        btn_create_user.pack(pady=5)
-
-        btn_mod_user = ctk.CTkButton(left_frame, text="Modifica Utente", command=self.show_moduser_options)
-        btn_mod_user.pack(pady=5)
-
-        btn_delete_user = ctk.CTkButton(left_frame, text="Elimina Utente", command=self.delete_non_root_users)
-        btn_delete_user.pack(pady=5)
-
-        # Right column buttons
-        right_frame = ctk.CTkFrame(commands_frame)
-        right_frame.pack(side=tk.RIGHT, padx=10)
-
-        self.user_listbox = tk.Listbox(right_frame, height=10, width=40)
-        self.user_listbox.pack(pady=5)
-
-        # Popola la lista degli utenti con directory in /home
-        self.load_users()
-
-        # Frame per le opzioni di input
         self.entry_frame = ctk.CTkFrame(self.root)
         self.entry_frame.pack(pady=10)
 
-    def start(self):
-        self.root.mainloop()
+        # Lista utenti
+        self.user_listbox = tk.Listbox(self.root)
+        self.user_listbox.pack(padx=10, pady=10)
+
+        # Pulsante per creare un nuovo utente
+        self.new_user_button = ctk.CTkButton(self.root, text="Crea Utente", command=self.show_entry_fields)
+        self.new_user_button.pack(pady=5)
+
+        # Pulsante per modificare un utente
+        self.mod_user_button = ctk.CTkButton(self.root, text="Modifica Utente", command=self.show_moduser_options)
+        self.mod_user_button.pack(pady=5)
+
+        # Pulsante per eliminare un utente
+        self.delete_user_button = ctk.CTkButton(self.root, text="Elimina Utente", command=self.delete_non_root_users)
+        self.delete_user_button.pack(pady=5)
+
+        # Lista di output
+        self.output_listbox = tk.Listbox(self.root, height=10, width=50)
+        self.output_listbox.pack(padx=10, pady=10)
+
+        # Carica la lista degli utenti all'avvio
+        self.load_users()
 
 if __name__ == "__main__":
     root = ctk.CTk()
-    root.title("Ubuntu Command Manager")
     app = UbuntuCommandManager(root)
-    app.start()
+    root.mainloop()
